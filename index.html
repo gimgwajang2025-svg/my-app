@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>식물아, 오늘도 잘 자랐니?</title>
+  <meta name="description" content="내 식물의 변화를 사진과 메모로 남기고, 아플 때 해결책을 찾아보는 앱">
+  <meta name="theme-color" content="#FFF5EB">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="식물아">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app"></main>
+
+  <!-- 홈 화면 아래쪽 큰 버튼 (엄지로 누르기 쉽게) -->
+  <div class="dock" id="dock" hidden>
+    <a class="big-btn" href="#record"><span class="emoji">📸</span>오늘 기록하기</a>
+  </div>
+
+  <nav class="tabbar" aria-label="아래 메뉴">
+    <a href="#home" data-tab="home"><span>🏠</span>홈</a>
+    <a href="#calendar" data-tab="calendar"><span>📅</span>캘린더</a>
+    <a href="#helper" data-tab="helper"><span>🩺</span>도우미</a>
+  </nav>
+
+  <!-- 알림 문구 -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- 새 배지 팝업 (화면 가운데, 화분 모양) -->
+  <div id="badge-pop" class="badge-pop" hidden role="dialog" aria-live="assertive" aria-label="새 배지">
+    <div class="pot">
+      <div class="pot-sprout"><span class="pot-stem"></span><span class="pot-emoji" id="bp-emoji"></span></div>
+      <div class="pot-rim"><span class="pot-soil"></span></div>
+      <div class="pot-body">
+        <small>🏅 새 배지!</small>
+        <b id="bp-name"></b>
+        <span id="bp-why"></span>
+        <i class="pot-face">• ᴗ •</i>
+      </div>
+    </div>
+    <p class="pot-close">화면을 누르면 닫혀요</p>
+  </div>
+
+  <!-- 입력 / 확인 창 -->
+  <div id="modal" class="modal" hidden>
+    <form class="modal-box" id="modal-form">
+      <h3 id="modal-title"></h3>
+      <p id="modal-text"></p>
+      <input id="modal-input" type="text" maxlength="30" autocomplete="off">
+      <div id="modal-suggest" class="suggest" hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="modal-cancel">취소</button>
+        <button type="submit" class="btn primary" id="modal-ok">확인</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 사진 크게 보기 -->
+  <div id="viewer" class="viewer" hidden>
+    <img id="viewer-img" alt="크게 보기">
+    <p>화면을 누르면 닫혀요</p>
+  </div>
+
+  <script src="./plants-data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
