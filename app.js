@@ -100,6 +100,49 @@ function latestPhoto(plantId) {
 
 const tagText = (e) => TAGS.filter((t) => e.tags.includes(t.id)).map((t) => `${t.emoji} ${t.label}`).join(' ');
 
+// 짧은 진동 (안드로이드만. 아이폰은 조용히 넘어간다)
+function buzz() {
+  try { if (navigator.vibrate) navigator.vibrate(30); } catch { /* 지원 안 함 */ }
+}
+
+/* ---------- 홈 화면 추가 안내 ---------- */
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isPhone = () => window.matchMedia('(pointer: coarse)').matches;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installEvent = null; // 안드로이드 크롬이 주는 "설치" 기회
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installEvent = e;
+  if ((location.hash.slice(1) || 'home').split('/')[0] === 'home') route();
+});
+window.addEventListener('appinstalled', () => { installEvent = null; meta.installHintClosed = true; saveMeta(); toast('홈 화면에 설치했어요! 🌿'); });
+
+function installHint() {
+  if (isStandalone() || !isPhone() || meta.installHintClosed) return '';
+  let how;
+  if (installEvent) how = '<button class="btn primary block" id="install-now">📲 홈 화면에 설치하기</button>';
+  else if (isIOS()) how = '<p>아래쪽 <b>공유 버튼 (□↑)</b> → <b>"홈 화면에 추가"</b>를 눌러 주세요.</p>';
+  else how = '<p>오른쪽 위 <b>⋮ 메뉴</b> → <b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b>를 눌러 주세요.</p>';
+  return `
+    <section class="install-card">
+      <button class="install-close" id="install-close" aria-label="안내 닫기">✕</button>
+      <b>📲 홈 화면에 추가하면 앱처럼 쓸 수 있어요</b>
+      ${how}
+    </section>`;
+}
+function bindInstallHint() {
+  const close = document.getElementById('install-close');
+  if (close) close.onclick = () => { meta.installHintClosed = true; saveMeta(); viewHome(); };
+  const btn = document.getElementById('install-now');
+  if (btn) btn.onclick = async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => null);
+    installEvent = null;
+    viewHome();
+  };
+}
+
 // 알림 문구: 여러 개가 겹치면 차례대로 보여 준다
 const toastQueue = [];
 let toastBusy = false;
@@ -112,7 +155,7 @@ function nextToast() {
   const item = toastQueue.shift();
   if (!item) { toastBusy = false; return; }
   toastBusy = true;
-  if (item.badge) return showBadgePop(item.badge, item.more, () => setTimeout(nextToast, 250));
+  if (item.badge) return showBadgePop(item.badge, item.more, () => setTimeout(nextToast, 250), item.head);
   t.textContent = item.msg;
   t.className = 'toast show' + (item.party ? ' party' : '');
   setTimeout(() => {
@@ -270,6 +313,7 @@ function viewHome() {
       <p>작은 변화도 소중하게 남겨요</p>
     </header>
 
+    ${installHint()}
     ${streakCard()}
 
     <section class="today-card">
@@ -291,6 +335,7 @@ function viewHome() {
   `;
 
   document.getElementById('add').onclick = async () => { if (await addPlant()) viewHome(); };
+  bindInstallHint();
 }
 
 function todayItem(e) {
@@ -359,8 +404,11 @@ function renderRecord(editing) {
       <div class="photo-grid">
         ${draft.photos.map((src, i) => `
           <div class="ph"><img src="${src}" alt="" data-view><button class="del" data-del="${i}" aria-label="사진 빼기">✕</button></div>`).join('')}
-        <label class="photo-add"><span>📷</span>사진 추가
-          <input type="file" accept="image/*" multiple hidden id="file">
+        <label class="photo-add"><span>📷</span>카메라로 찍기
+          <input type="file" accept="image/*" capture="environment" hidden class="photo-in">
+        </label>
+        <label class="photo-add"><span>🖼️</span>앨범에서 고르기
+          <input type="file" accept="image/*" multiple hidden class="photo-in">
         </label>
       </div>
     </div>
@@ -402,7 +450,7 @@ function renderRecord(editing) {
   }));
   $app.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => { keep(); draft.photos.splice(+b.dataset.del, 1); redraw(); }));
 
-  document.getElementById('file').onchange = async (e) => {
+  $app.querySelectorAll('.photo-in').forEach((inp) => (inp.onchange = async (e) => {
     keep();
     const files = [...e.target.files];
     if (!files.length) return;
@@ -411,7 +459,7 @@ function renderRecord(editing) {
       try { draft.photos.push(await shrinkPhoto(f)); } catch { toast('읽을 수 없는 사진이 있었어요'); }
     }
     redraw();
-  };
+  }));
 
   document.getElementById('save').onclick = () => {
     keep();
@@ -427,9 +475,18 @@ function renderRecord(editing) {
     } else {
       entries.push({ id: uid(), createdAt: Date.now(), ...data });
       if (!save()) return;
-      toast(`기록 ${entriesOf(draft.plantId).length}번째예요 🎉`, true);
+      // 축하는 화면 가운데 화분 팝업으로 (디자인 가이드)
       const s = streakInfo();
-      if (s.current >= 2 && s.today) toast(`🔥 ${s.current}일 연속 기록 중!`);
+      buzz();
+      toastQueue.push({
+        head: '🎊 기록 완료!',
+        badge: {
+          emoji: '🎉',
+          name: `기록 ${entriesOf(draft.plantId).length}번째예요`,
+          done: s.current >= 2 && s.today ? `🔥 ${s.current}일 연속 기록 중!` : '오늘도 잘 자랐니? 🌿'
+        }
+      });
+      if (!toastBusy) nextToast();
     }
     checkBadges();
     const pid = draft.plantId;
@@ -832,8 +889,11 @@ function checkBadges() {
 }
 
 // 화면 가운데 화분 팝업: 누르거나 3.5초 지나면 닫힌다
-function showBadgePop(b, more, done) {
+function showBadgePop(b, more, done, head) {
   const pop = document.getElementById('badge-pop');
+  if (!head) buzz(); // 배지를 받으면 짧게 진동 (기록 축하는 저장할 때 이미 진동함)
+  document.getElementById('bp-head').textContent = head || '🏅 새 배지!';
+  pop.setAttribute('aria-label', head ? '축하' : '새 배지');
   document.getElementById('bp-emoji').textContent = b.emoji;
   document.getElementById('bp-name').textContent = b.name;
   document.getElementById('bp-why').textContent = more ? `${b.done} · 외 ${more}개 더!` : b.done;
